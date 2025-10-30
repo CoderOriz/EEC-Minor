@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CSV to Graph - Meter Data Visualization</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+    <!-- Chart.js for visualization -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- PapaParse for CSV parsing -->
+    <script src="https://cdn.jsdelivr.net/npm/papaparse@5.3.0/papaparse.min.js"></script>
+</head>
+<body>
+    <header>
+        <div class="header-content">
+            <img src="{{ url_for('static', filename='logo.svg') }}" alt="Energy Dashboard Logo" class="logo">
+            <div>
+                <h1>Energy Dashboard</h1>
+                <p>Convert meter data from CSV files into interactive graphs for easy analysis</p>
+            </div>
+        </div>
+        <nav class="main-nav">
+            <ul>
+                <li><a href="#upload-section">Upload</a></li>
+                <li><a href="#data-preview-section">Data Preview</a></li>
+                <li><a href="#bill-calculation-section">Bill Calculation</a></li>
+                <li><a href="#visualization-section">Visualization</a></li>
+                <li><a href="#analysis-section">Analysis</a></li>
+            </ul>
+        </nav>
+    </header>
+
+    <main>
+        <section id="upload-section" class="upload-section">
+            <h2>Upload Your CSV Data</h2>
+            <div class="file-upload">
+                <input type="file" id="csv-file" accept=".csv">
+                <label for="csv-file">Upload CSV File</label>
+                <p class="file-info">No file selected</p>
+                <div class="loading" id="upload-loading">
+                    <div></div><div></div><div></div><div></div>
+                </div>
+            </div>
+            <div class="sample-data">
+                <p>Don't have a CSV file? <button id="load-sample">Load Sample Data</button></p>
+                <div class="loading" id="sample-loading">
+                    <div></div><div></div><div></div><div></div>
+                </div>
+            </div>
+        </section>
+
+        <section id="data-preview-section" class="data-preview-section">
+            <h2>Data Preview</h2>
+            <div class="data-table-container">
+                <table id="data-preview">
+                    <thead>
+                        <tr>
+                            <th>No data available</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>Upload a CSV file to see data preview</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <section id="visualization-section" class="visualization-section">
+            <h2>Visualization</h2>
+            <div class="chart-controls">
+                <div class="chart-type">
+                    <label for="chart-type-select">Chart Type:</label>
+                    <select id="chart-type-select">
+                        <option value="line">Line Chart</option>
+                        <option value="bar">Bar Chart</option>
+                        <option value="scatter">Scatter Plot</option>
+                    </select>
+                </div>
+                <div class="axis-selection">
+                    <div class="x-axis">
+                        <label for="x-axis-select">X-Axis:</label>
+                        <select id="x-axis-select" disabled>
+                            <option value="">Select column</option>
+                        </select>
+                    </div>
+                    <div class="y-axis">
+                        <label for="y-axis-select">Y-Axis:</label>
+                        <select id="y-axis-select" disabled>
+                            <option value="">Select column</option>
+                        </select>
+                    </div>
+                </div>
+                <button id="generate-chart" disabled>Generate Chart</button>
+            </div>
+            <div class="chart-container">
+                <canvas id="chart-area"></canvas>
+            </div>
+        </section>
+
+        <div class="bill-generation-container">
+            <button id="generate-bill-pdf" class="primary-button" disabled>Generate Detailed Bill PDF</button>
+            <p class="bill-generation-info">Upload data or load sample data to enable bill generation</p>
+            <div class="bill-info">
+                <p>Click "Generate Detailed Bill PDF" to create a comprehensive electricity bill with all consumption details and charges.</p>
+            </div>
+        </div>
+
+        <section id="analysis-section" class="analysis-section">
+            <h2>Data Analysis</h2>
+            <div class="analysis-options">
+                <button id="detect-patterns" disabled>Detect Patterns</button>
+                <button id="find-anomalies" disabled>Find Anomalies</button>
+                <button id="calculate-stats" disabled>Calculate Statistics</button>
+            </div>
+            <div class="analysis-results">
+                <h3>Results</h3>
+                <div id="analysis-output">
+                    <p>No analysis performed yet. Upload data and generate a chart first.</p>
+                </div>
+            </div>
+        </section>
+
+        <section class="export-section">
+            <h2>Export</h2>
+            <div class="export-options">
+                <button id="export-chart" disabled>Export Chart as Image</button>
+                <button id="export-data" disabled>Export Processed Data</button>
+                <button id="export-analysis" disabled>Export Analysis Results</button>
+            </div>
+        </section>
+    </main>
+
+    <footer>
+        <p>Energy Dashboard - Meter Data Visualization Tool</p>
+    </footer>
+
+    <script src="{{ url_for('static', filename='script.js') }}"></script>
+</body>
+</html>
