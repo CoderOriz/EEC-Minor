@@ -277,6 +277,7 @@ function processUploadedData(data) {
     document.getElementById('find-anomalies').disabled = false;
     document.getElementById('calculate-stats').disabled = false;
     document.getElementById('export-data').disabled = false;
+    document.getElementById('generate-bill-pdf').disabled = false;
 }
 
 // Update bill calculation section
