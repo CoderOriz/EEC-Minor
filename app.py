@@ -13,27 +13,6 @@ from reportlab.lib import colors
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
 
-# Maharashtra Electricity Tariff Rates (2023)
-MAHARASHTRA_TARIFF = {
-    'residential': {
-        'slabs': [
-            {'units': 100, 'rate': 4.16},  # 0-100 units
-            {'units': 300, 'rate': 7.34},  # 101-300 units
-            {'units': 500, 'rate': 10.37}, # 301-500 units
-            {'units': float('inf'), 'rate': 12.51}  # Above 500 units
-        ],
-        'fixed_charge': 90  # Fixed monthly charge in INR
-    },
-    'commercial': {
-        'rate': 13.05,  # Flat rate per unit for commercial connections
-        'fixed_charge': 200  # Fixed monthly charge in INR
-    },
-    'industrial': {
-        'rate': 11.55,  # Flat rate per unit for industrial connections
-        'fixed_charge': 300  # Fixed monthly charge in INR
-    }
-}
-
 app = Flask(__name__, static_folder='static', template_folder='templates')
 app.config['UPLOAD_FOLDER'] = 'uploads'
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max upload size
@@ -42,88 +21,32 @@ app.config['ALLOWED_EXTENSIONS'] = {'csv'}
 # Create upload folder if it doesn't exist
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 
-def calculate_electricity_bill(df, consumer_type='residential'):
+def process_meter_data(df):
     """
-    Calculate electricity bill based on Maharashtra state tariff rates
+    Process electricity meter data to ensure consistent format
     
     Args:
-        df: DataFrame containing electricity consumption data
-        consumer_type: Type of consumer (residential, commercial, industrial)
+        df: DataFrame containing electricity meter data
     
     Returns:
-        DataFrame with added bill calculation columns
+        DataFrame with processed data
     """
     # Make a copy to avoid modifying the original
     result_df = df.copy()
     
-    # Check if the required electrical parameters are present
-    electrical_params = [
-        'R_Ph_Voltage', 'Y_Ph_Voltage', 'B_Ph_Voltage', 'Average_Phase_Voltage',
-        'R_PF', 'Y_PF', 'B_PF', 'Total_PF',
-        'Neutral_Line_current',
-        'R_Phase_Active_Current', 'Y_Phase_Active_Current', 'B_Phase_Active_Current',
-        'R_Phase_Reactive_Current', 'Y_Phase_Reactive_Current', 'B_Phase_Reactive_Current',
-        'R_Phase_Active_Power', 'Y_Phase_Active_Power', 'B_Phase_Active_Power', '3_Phase_Active_Power',
-        'R_Phase_Reactive_Power', 'Y_Phase_Reactive_Power', 'B_Phase_Reactive_Power', '3_Phase_Reactive_Power',
-        'R_Phase_Apparent_Power', 'Y_Phase_Apparent_Power', 'B_Phase_Apparent_Power', '3_Phase_Apparent_Power'
-    ]
-    
     # Check if we have consumption data directly
-    if 'Electricity_Consumption_kWh' in df.columns:
-        # Use the existing consumption data
-        consumption_column = 'Electricity_Consumption_kWh'
-    elif '3_Phase_Active_Power' in df.columns:
-        # Calculate consumption from 3-phase active power (kW to kWh conversion)
-        # Assuming the data is hourly, we divide by 1000 to convert W to kW
-        result_df['Electricity_Consumption_kWh'] = df['3_Phase_Active_Power'] / 1000
-        consumption_column = 'Electricity_Consumption_kWh'
-    elif all(f'{phase}_Phase_Active_Power' in df.columns for phase in ['R', 'Y', 'B']):
-        # Sum the three phases to get total consumption
-        result_df['Electricity_Consumption_kWh'] = (
-            df['R_Phase_Active_Power'] + 
-            df['Y_Phase_Active_Power'] + 
-            df['B_Phase_Active_Power']
-        ) / 1000  # Convert W to kW
-        consumption_column = 'Electricity_Consumption_kWh'
-    else:
-        # No consumption data available
-        return result_df
-    
-    # Calculate bill based on tariff type
-    if consumer_type == 'residential':
-        # Apply slab-based billing for residential
-        result_df['Bill_INR'] = 0
-        
-        # Apply fixed charge
-        result_df['Fixed_Charge_INR'] = MAHARASHTRA_TARIFF['residential']['fixed_charge']
-        
-        # Apply slab rates
-        consumption = result_df[consumption_column]
-        slabs = MAHARASHTRA_TARIFF['residential']['slabs']
-        
-        for i, slab in enumerate(slabs):
-            if i == 0:
-                # First slab
-                units_in_slab = np.minimum(consumption, slab['units'])
-                result_df['Bill_INR'] += units_in_slab * slab['rate']
-                remaining = consumption - units_in_slab
-            else:
-                # Higher slabs
-                prev_limit = slabs[i-1]['units']
-                current_limit = slab['units']
-                units_in_slab = np.minimum(np.maximum(0, consumption - prev_limit), 
-                                          current_limit - prev_limit)
-                result_df['Bill_INR'] += units_in_slab * slab['rate']
-    else:
-        # Flat rate for commercial and industrial
-        rate = MAHARASHTRA_TARIFF[consumer_type]['rate']
-        fixed_charge = MAHARASHTRA_TARIFF[consumer_type]['fixed_charge']
-        
-        result_df['Bill_INR'] = result_df[consumption_column] * rate
-        result_df['Fixed_Charge_INR'] = fixed_charge
-    
-    # Add total bill including fixed charges
-    result_df['Total_Bill_INR'] = result_df['Bill_INR'] + result_df['Fixed_Charge_INR']
+    if 'Electricity_Consumption_kWh' not in df.columns:
+        if '3_Phase_Active_Power' in df.columns:
+            # Calculate consumption from 3-phase active power (kW to kWh conversion)
+            # Assuming the data is hourly, we divide by 1000 to convert W to kW
+            result_df['Electricity_Consumption_kWh'] = df['3_Phase_Active_Power'] / 1000
+        elif all(f'{phase}_Phase_Active_Power' in df.columns for phase in ['R', 'Y', 'B']):
+            # Sum the three phases to get total consumption
+            result_df['Electricity_Consumption_kWh'] = (
+                df['R_Phase_Active_Power'] + 
+                df['Y_Phase_Active_Power'] + 
+                df['B_Phase_Active_Power']
+            ) / 1000  # Convert W to kW
     
     return result_df
 
@@ -152,8 +75,20 @@ def upload_file():
             filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
             file.save(filepath)
             
-            # Read the CSV file
-            df = pd.read_csv(filepath)
+            # Read the CSV file with error handling
+            try:
+                df = pd.read_csv(filepath)
+            except pd.errors.EmptyDataError:
+                return jsonify({'error': 'The uploaded CSV file is empty'}), 400
+            except pd.errors.ParserError:
+                return jsonify({'error': 'Unable to parse the CSV file. Please check the file format'}), 400
+            
+            # Check if DataFrame is empty
+            if df.empty:
+                return jsonify({'error': 'The uploaded CSV file contains no data'}), 400
+                
+            # Process the meter data
+            df = process_meter_data(df)
             
             # Get basic info about the data
             columns = df.columns.tolist()
@@ -162,27 +97,25 @@ def upload_file():
             # Get data types for each column
             dtypes = {col: str(df[col].dtype) for col in columns}
             
-            # Calculate electricity bill if required parameters are present
-            df = calculate_electricity_bill(df, 'residential')
-            
-            # Update preview with calculated bill
-            preview = df.head(10).to_dict('records')
-            columns = df.columns.tolist()
-            
             return jsonify({
                 'success': True,
                 'filename': filename,
                 'columns': columns,
                 'preview': preview,
                 'dtypes': dtypes,
-                'row_count': len(df),
-                'has_bill_calculation': 'Total_Bill_INR' in df.columns
+                'row_count': len(df)
             })
             
         except Exception as e:
-            return jsonify({'error': str(e)}), 500
+            # More detailed error handling
+            error_message = str(e)
+            print(f"File upload error: {error_message}")
+            return jsonify({
+                'error': f"Error processing file: {error_message}",
+                'details': "Please ensure your CSV file is properly formatted with valid data"
+            }), 500
     
-    return jsonify({'error': 'File type not allowed'}), 400
+    return jsonify({'error': 'File type not allowed. Please upload a CSV file'}), 400
 
 @app.route('/sample')
 def get_sample_data():
@@ -256,9 +189,6 @@ def get_sample_data():
     df['3_Phase_Reactive_Power'] = df['R_Phase_Reactive_Power'] + df['Y_Phase_Reactive_Power'] + df['B_Phase_Reactive_Power']
     df['3_Phase_Apparent_Power'] = df['R_Phase_Apparent_Power'] + df['Y_Phase_Apparent_Power'] + df['B_Phase_Apparent_Power']
     
-    # Calculate bill using the Maharashtra tariff
-    df = calculate_electricity_bill(df, 'residential')
-    
     # Save to a CSV file
     sample_file = os.path.join(app.config['UPLOAD_FOLDER'], 'sample_meter_data.csv')
     df.to_csv(sample_file, index=False)
@@ -286,14 +216,12 @@ def analyze_data():
     
     try:
         df = pd.read_csv(filepath)
-        
         results = {}
         
         if analysis_type == 'statistics':
             # Calculate basic statistics
             numeric_cols = df.select_dtypes(include=[np.number]).columns.tolist()
             stats = {}
-            
             for col in numeric_cols:
                 stats[col] = {
                     'mean': float(df[col].mean()),
@@ -304,14 +232,65 @@ def analyze_data():
                     'q1': float(df[col].quantile(0.25)),
                     'q3': float(df[col].quantile(0.75))
                 }
-            
             results['statistics'] = stats
+            
+        elif analysis_type == 'correlation':
+            # Calculate correlation matrix
+            numeric_cols = df.select_dtypes(include=[np.number]).columns.tolist()
+            corr_matrix = df[numeric_cols].corr().round(3)
+            # Convert to dictionary format
+            corr_dict = {}
+            for col in corr_matrix.columns:
+                corr_dict[col] = corr_matrix[col].to_dict()
+            results['correlation'] = corr_dict
+            
+        elif analysis_type == 'time_series':
+            # Check if there's a date column
+            date_cols = [col for col in df.columns if 'date' in col.lower() or 'time' in col.lower()]
+            if not date_cols:
+                return jsonify({'error': 'No date or time column found for time series analysis'}), 400
+            
+            date_col = date_cols[0]
+            # Convert to datetime if not already
+            try:
+                df[date_col] = pd.to_datetime(df[date_col])
+            except:
+                return jsonify({'error': f'Could not convert {date_col} to datetime'}), 400
+            
+            # Get numeric columns for analysis
+            numeric_cols = df.select_dtypes(include=[np.number]).columns.tolist()
+            # Calculate monthly averages
+            df['month'] = df[date_col].dt.to_period('M')
+            monthly_avg = df.groupby('month')[numeric_cols].mean().reset_index()
+            monthly_avg['month'] = monthly_avg['month'].astype(str)
+            results['time_series'] = {
+                'monthly_averages': monthly_avg.to_dict('records')
+            }
+            
+        elif analysis_type == 'anomaly_detection':
+            # Simple anomaly detection using Z-score
+            numeric_cols = df.select_dtypes(include=[np.number]).columns.tolist()
+            anomalies = {}
+            for col in numeric_cols:
+                mean = df[col].mean()
+                std = df[col].std()
+                # Consider values beyond 3 standard deviations as anomalies
+                lower_bound = mean - 3 * std
+                upper_bound = mean + 3 * std
+                anomaly_indices = df[(df[col] < lower_bound) | (df[col] > upper_bound)].index.tolist()
+                if anomaly_indices:
+                    anomalies[col] = {
+                        'indices': anomaly_indices[:10],  # Limit to first 10 anomalies
+                        'values': df.loc[anomaly_indices[:10], col].tolist(),
+                        'lower_bound': float(lower_bound),
+                        'upper_bound': float(upper_bound)
+                    }
+            results['anomalies'] = anomalies
             
         elif analysis_type == 'patterns':
             # Detect patterns - simple trend analysis
             numeric_cols = df.select_dtypes(include=[np.number]).columns.tolist()
             patterns = {}
-            
             # Check for date columns
             date_col = None
             for col in df.columns:
@@ -325,45 +304,30 @@ def analyze_data():
             if date_col:
                 df['temp_date'] = pd.to_datetime(df[date_col])
                 df = df.sort_values('temp_date')
-                
                 for col in numeric_cols:
                     # Calculate trend (simple linear regression)
                     x = np.arange(len(df))
                     y = df[col].values
-                    
                     # Calculate slope using numpy's polyfit
-                    slope, intercept = np.polyfit(x, y, 1)
-                    
-                    patterns[col] = {
-                        'trend': 'increasing' if slope > 0.01 else 'decreasing' if slope < -0.01 else 'stable',
-                        'slope': float(slope),
-                        'trend_strength': abs(float(slope)) / df[col].std() if df[col].std() > 0 else 0
-                    }
-                
+                    try:
+                        slope, intercept = np.polyfit(x, y, 1)
+                        patterns[col] = {
+                            'trend': 'increasing' if slope > 0.01 else 'decreasing' if slope < -0.01 else 'stable',
+                            'slope': float(slope),
+                            'trend_strength': abs(float(slope)) / df[col].std() if df[col].std() > 0 else 0
+                        }
+                    except Exception as e:
+                        patterns[col] = {
+                            'trend': 'unknown',
+                            'error': str(e)
+                        }
                 df = df.drop('temp_date', axis=1)
-            
-            results['patterns'] = patterns
-            
-        elif analysis_type == 'anomalies':
-            # Simple anomaly detection using Z-score
-            numeric_cols = df.select_dtypes(include=[np.number]).columns.tolist()
-            anomalies = {}
-            
-            for col in numeric_cols:
-                mean = df[col].mean()
-                std = df[col].std()
-                
-                if std > 0:
-                    z_scores = (df[col] - mean) / std
-                    outliers = df[abs(z_scores) > 3].index.tolist()
-                    
-                    anomalies[col] = {
-                        'count': len(outliers),
-                        'indices': outliers[:10],  # Limit to first 10 anomalies
-                        'values': df.loc[outliers[:10], col].tolist() if outliers else []
-                    }
-            
-            results['anomalies'] = anomalies
+                results['patterns'] = patterns
+            else:
+                results['patterns'] = {'error': 'No date column found for pattern analysis'}
+        
+        else:
+            return jsonify({'error': f'Unknown analysis type: {analysis_type}'}), 400
         
         return jsonify({
             'success': True,
