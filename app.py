@@ -203,6 +203,41 @@ def get_sample_data():
         'row_count': len(df)
     })
 
+@app.route('/data/<filename>')
+def get_chart_data(filename):
+    filepath = os.path.join(app.config['UPLOAD_FOLDER'], secure_filename(filename))
+    
+    try:
+        df = pd.read_csv(filepath)
+        
+        # Get columns requested in query parameters
+        x_col = request.args.get('x')
+        y_col = request.args.get('y')
+        
+        if not x_col or not y_col:
+            return jsonify({'error': 'Missing x or y column parameters'}), 400
+        
+        if x_col not in df.columns or y_col not in df.columns:
+            return jsonify({'error': 'Requested columns not found in data'}), 400
+        
+        # Extract the data for the requested columns
+        data = {
+            'x': df[x_col].tolist(),
+            'y': df[y_col].tolist(),
+            'x_label': x_col,
+            'y_label': y_col
+        }
+        
+        return jsonify({
+            'success': True,
+            'data': data
+        })
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+
 @app.route('/analyze', methods=['POST'])
 def analyze_data():
     data = request.json

@@ -25,6 +25,7 @@
                 <li><a href="#data-preview-section">Data Preview</a></li>
                 <li><a href="#visualization-section">Visualization</a></li>
                 <li><a href="#analysis-section">Analysis</a></li>
+                <li><a href="#cost-calculator-section">Cost Calculator</a></li>
             </ul>
         </nav>
     </header>
@@ -109,6 +110,54 @@
                 <h3>Results</h3>
                 <div id="analysis-output">
                     <p>No analysis performed yet. Upload data and generate a chart first.</p>
+                </div>
+            </div>
+        </section>
+
+        <section id="cost-calculator-section" class="cost-calculator-section">
+            <h2>Electricity Cost Calculator</h2>
+            <div class="tariff-settings">
+                <div class="tariff-type">
+                    <label for="tariff-structure">Tariff Structure:</label>
+                    <select id="tariff-structure">
+                        <option value="flat">Flat Rate</option>
+                        <option value="time_of_use">Time of Use</option>
+                    </select>
+                </div>
+                
+                <div class="rate-settings">
+                    <div class="flat-rate-settings">
+                        <label for="base-rate">Base Rate (₹/kWh):</label>
+                        <input type="number" id="base-rate" value="5.0" min="0" step="0.01">
+                    </div>
+                    
+                    <div class="time-of-use-settings" style="display: none;">
+                        <div class="rate-input">
+                            <label for="peak-rate">Peak Rate (₹/kWh):</label>
+                            <input type="number" id="peak-rate" value="8.0" min="0" step="0.01">
+                        </div>
+                        <div class="rate-input">
+                            <label for="off-peak-rate">Off-Peak Rate (₹/kWh):</label>
+                            <input type="number" id="off-peak-rate" value="3.0" min="0" step="0.01">
+                        </div>
+                        <div class="hours-input">
+                            <label for="peak-hours-start">Peak Hours Start:</label>
+                            <input type="number" id="peak-hours-start" value="9" min="0" max="23">
+                        </div>
+                        <div class="hours-input">
+                            <label for="peak-hours-end">Peak Hours End:</label>
+                            <input type="number" id="peak-hours-end" value="17" min="0" max="23">
+                        </div>
+                    </div>
+                </div>
+                
+                <button id="calculate-cost" enabled>Calculate Cost</button>
+            </div>
+            
+            <div class="cost-results">
+                <h3>Cost Analysis</h3>
+                <div id="cost-output">
+                    <p>No cost calculation performed yet. Upload data and configure tariff settings first.</p>
                 </div>
             </div>
         </section>

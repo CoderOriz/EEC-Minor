@@ -32,6 +32,12 @@ document.addEventListener('DOMContentLoaded', function() {
     const exportDataBtn = document.getElementById('export-data');
     const exportAnalysisBtn = document.getElementById('export-analysis');
     
+    // Cost calculator elements
+    const tariffStructure = document.getElementById('tariff-structure');
+    const calculateCostBtn = document.getElementById('calculate-cost');
+    const flatRateSettings = document.querySelector('.flat-rate-settings');
+    const timeOfUseSettings = document.querySelector('.time-of-use-settings');
+    
     // Event listeners
     fileInput.addEventListener('change', handleFileUpload);
     loadSampleBtn.addEventListener('click', loadSampleData);
@@ -48,6 +54,20 @@ document.addEventListener('DOMContentLoaded', function() {
     exportChartBtn.addEventListener('click', exportChart);
     exportDataBtn.addEventListener('click', exportData);
     exportAnalysisBtn.addEventListener('click', exportAnalysis);
+    
+    // Tariff structure change event
+    tariffStructure.addEventListener('change', function() {
+        if (this.value === 'flat') {
+            flatRateSettings.style.display = 'block';
+            timeOfUseSettings.style.display = 'none';
+        } else {
+            flatRateSettings.style.display = 'none';
+            timeOfUseSettings.style.display = 'block';
+        }
+    });
+    
+    // Calculate cost button event
+    calculateCostBtn.addEventListener('click', calculateCost);
     
     // Initialize Chart.js
     Chart.defaults.font.family = "'Segoe UI', Tahoma, Geneva, Verdana, sans-serif";
@@ -574,4 +594,179 @@ function exportAnalysis() {
     link.href = URL.createObjectURL(blob);
     link.download = 'analysis_results.txt';
     link.click();
+}
+
+// Calculate electricity cost
+function calculateCost() {
+    if (!csvData) {
+        showErrorToast('Please upload data first');
+        return;
+    }
+    
+    const costOutput = document.getElementById('cost-output');
+    costOutput.innerHTML = '<p>Calculating costs...</p>';
+    
+    // Get tariff settings
+    const tariffType = document.getElementById('tariff-structure').value;
+    let totalConsumption = 0;
+    let totalCost = 0;
+    
+    // Get consumption data from the uploaded file
+    fetch(`/data/${csvData.filename}?x=Date&y=Electricity_Consumption_kWh`)
+    .then(response => response.json())
+    .then(result => {
+        if (!result.success) {
+            costOutput.innerHTML = `<p>Error: ${result.error}</p>`;
+            return;
+        }
+        
+        const consumptionData = result.data.y;
+        const dates = result.data.x;
+        
+        // Calculate total consumption
+        totalConsumption = consumptionData.reduce((sum, value) => sum + parseFloat(value), 0);
+        
+        // Calculate cost based on tariff type
+        if (tariffType === 'flat') {
+            // Flat rate calculation
+            const baseRate = parseFloat(document.getElementById('base-rate').value);
+            totalCost = totalConsumption * baseRate;
+            
+            // Display results as a table
+            costOutput.innerHTML = `
+                <div class="cost-summary">
+                    <h4>Cost Summary (Flat Rate)</h4>
+                    <table class="cost-table">
+                        <thead>
+                            <tr>
+                                <th>Item</th>
+                                <th>Value</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>Total Consumption (kWh)</td>
+                                <td>${totalConsumption.toFixed(2)}</td>
+                            </tr>
+                            <tr>
+                                <td>Rate (₹/kWh)</td>
+                                <td>₹${baseRate.toFixed(2)}</td>
+                            </tr>
+                        </tbody>
+                        <tfoot>
+                            <tr>
+                                <td>Total Cost</td>
+                                <td>₹${totalCost.toFixed(2)}</td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
+                <button id="generate-bill" class="btn btn-primary">Generate Bill PDF</button>
+            `;
+            
+            // Add event listener for the generate bill button
+            document.getElementById('generate-bill').addEventListener('click', () => generateBillPDF(totalConsumption, totalCost));
+            
+        } else {
+            // Time of use calculation
+            const peakRate = parseFloat(document.getElementById('peak-rate').value);
+            const offPeakRate = parseFloat(document.getElementById('off-peak-rate').value);
+            const peakStart = parseInt(document.getElementById('peak-hours-start').value);
+            const peakEnd = parseInt(document.getElementById('peak-hours-end').value);
+            
+            // Assume data is hourly and has timestamps
+            // For this demo, we'll just split the consumption evenly
+            const peakHours = peakEnd - peakStart;
+            const totalHours = 24;
+            const offPeakHours = totalHours - peakHours;
+            
+            // Estimate peak and off-peak consumption
+            const peakConsumption = totalConsumption * (peakHours / totalHours);
+            const offPeakConsumption = totalConsumption * (offPeakHours / totalHours);
+            
+            // Calculate costs
+            const peakCost = peakConsumption * peakRate;
+            const offPeakCost = offPeakConsumption * offPeakRate;
+            totalCost = peakCost + offPeakCost;
+            
+            // Display results as a table
+            costOutput.innerHTML = `
+                <div class="cost-summary">
+                    <h4>Cost Summary (Time of Use)</h4>
+                    <table class="cost-table">
+                        <thead>
+                            <tr>
+                                <th>Segment</th>
+                                <th>Consumption (kWh)</th>
+                                <th>Rate (₹/kWh)</th>
+                                <th>Cost (₹)</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>Peak (${peakStart}:00–${peakEnd}:00)</td>
+                                <td>${peakConsumption.toFixed(2)}</td>
+                                <td>₹${peakRate.toFixed(2)}</td>
+                                <td>₹${peakCost.toFixed(2)}</td>
+                            </tr>
+                            <tr>
+                                <td>Off-Peak</td>
+                                <td>${offPeakConsumption.toFixed(2)}</td>
+                                <td>₹${offPeakRate.toFixed(2)}</td>
+                                <td>₹${offPeakCost.toFixed(2)}</td>
+                            </tr>
+                        </tbody>
+                        <tfoot>
+                            <tr>
+                                <td colspan="3">Total Cost</td>
+                                <td>₹${totalCost.toFixed(2)}</td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
+                <button id="generate-bill" class="btn btn-primary">Generate Bill PDF</button>
+            `;
+            
+            // Add event listener for the generate bill button
+            document.getElementById('generate-bill').addEventListener('click', () => generateBillPDF(totalConsumption, totalCost));
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        costOutput.innerHTML = '<p>Error calculating costs. Please try again.</p>';
+    });
+}
+
+// Generate bill PDF
+function generateBillPDF(totalConsumption, totalCost) {
+    const billingPeriod = csvData ? `${csvData.filename.replace('.csv', '')}` : 'Current Period';
+    
+    fetch('/generate_bill_pdf', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            total_consumption: totalConsumption,
+            total_cost: totalCost,
+            billing_period: billingPeriod,
+            billing_days: 30, // Default to 30 days
+            tariff_type: document.getElementById('tariff-structure').value
+        })
+    })
+    .then(response => response.blob())
+    .then(blob => {
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'electricity_bill.pdf';
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        showSuccessToast('Bill PDF generated successfully!');
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        showErrorToast('Error generating PDF bill. Please try again.');
+    });
 }

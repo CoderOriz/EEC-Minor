@@ -597,6 +597,38 @@ select {
     margin-bottom: 1.5rem;
 }
 
+/* Cost Calculator Table */
+.cost-summary h4 {
+    margin-bottom: 0.75rem;
+}
+
+.cost-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 0.5rem;
+}
+
+.cost-table th,
+.cost-table td {
+    border: 1px solid #e0e0e0;
+    padding: 8px 10px;
+    text-align: right;
+}
+
+.cost-table th:first-child,
+.cost-table td:first-child {
+    text-align: left;
+}
+
+.cost-table thead th {
+    background: #f5f7fa;
+}
+
+.cost-table tfoot td {
+    font-weight: 600;
+    background: #eef3ff;
+}
+
 .analysis-results {
     background-color: #f9f9f9;
     padding: 1rem;
